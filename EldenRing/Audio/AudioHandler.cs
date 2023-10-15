@@ -1,6 +1,8 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using NAudio;
+using NAudio.Extras;
 using NAudio.Wave;
 using NAudio.Wave.SampleProviders;
 
@@ -11,27 +13,7 @@ namespace EldenRing.Audio
         Death
     }
 
-    // Cached sound concept lovingly borrowed from: https://markheath.net/post/fire-and-forget-audio-playback-with
-    class CachedSound
-    {
-        internal float[] AudioData { get; private set; }
-        internal WaveFormat WaveFormat { get; private set; }
-        internal CachedSound(string audioFileName)
-        {
-            using (var audioFileReader = new AudioFileReader(audioFileName))
-            {
-                WaveFormat = audioFileReader.WaveFormat;
-                var wholeFile = new List<float>((int)(audioFileReader.Length / 4));
-                var readBuffer = new float[audioFileReader.WaveFormat.SampleRate * audioFileReader.WaveFormat.Channels];
-                int samplesRead;
-                while ((samplesRead = audioFileReader.Read(readBuffer, 0, readBuffer.Length)) > 0)
-                {
-                    wholeFile.AddRange(readBuffer.Take(samplesRead));
-                }
-                AudioData = wholeFile.ToArray();
-            }
-        }
-    }
+
 
     class CachedSoundSampleProvider : ISampleProvider
     {
@@ -74,7 +56,8 @@ namespace EldenRing.Audio
 
         public AudioHandler(string deathPath)
         {
-            outputDevice = new WaveOutEvent();
+            // outputDevice = new WaveOutEvent();
+            outputDevice = new DirectSoundOut();
             sounds = new Dictionary<AudioTrigger, CachedSound>();
             sounds.Add(AudioTrigger.Death, new(deathPath));
             mixer = new(WaveFormat.CreateIeeeFloatWaveFormat(48000, 2));
