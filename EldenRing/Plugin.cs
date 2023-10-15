@@ -1,34 +1,23 @@
 using System;
 using System.Diagnostics;
 using System.IO;
-using System.Media;
 using System.Numerics;
 using System.Threading.Tasks;
-
-using Dalamud.Configuration.Internal;
-using Dalamud.Data;
-using Dalamud.Game;
 using Dalamud.Game.ClientState.Conditions;
-using Dalamud.Game.Gui;
-using Dalamud.Game.Network;
+using Dalamud.Game.Command;
 using Dalamud.Game.Text;
 using Dalamud.Game.Text.SeStringHandling;
-using Dalamud.Interface;
 using Dalamud.Interface.Animation;
 using Dalamud.Interface.Animation.EasingFunctions;
 using Dalamud.Interface.Internal;
+using Dalamud.Interface.Utility;
 using Dalamud.Memory;
-using Dalamud.Utility;
-using ImGuiNET;
-using ImGuiScene;
-using Lumina.Excel.GeneratedSheets;
-
-using Condition = Dalamud.Game.ClientState.Conditions.Condition;
-using Dalamud.Game.Command;
-using Dalamud.IoC;
 using Dalamud.Plugin;
-using Dalamud.Logging;
+using Dalamud.Plugin.Services;
+using Dalamud.Utility;
 using EldenRing.Audio;
+using ImGuiNET;
+using Lumina.Excel.GeneratedSheets;
 
 namespace EldenRing
 {
@@ -38,37 +27,27 @@ namespace EldenRing
 
         private const string commandName = "/eldenring";
 
-
-        private DalamudPluginInterface PluginInterface { get; init; }
-
-        private CommandManager CommandManager { get; init; }
-
+        private AudioHandler audioHandler { get; init; }
         private Configuration Configuration { get; init; }
-
+        private DalamudPluginInterface PluginInterface;
         private PluginUI PluginUi { get; init; }
 
-        private DataManager DataManager { get; init; }
+        private IChatGui chatGui { get; init; }
+        private ICommandManager CommandManager { get; init; }
+        private ICondition condition { get; init; }
+        private IDataManager DataManager { get; init; }
+        private IDutyState  dutyState { get; init; }
+        private IFramework framework { get; init; }
+        private IPluginLog pluginLog { get; init; }
 
-        private Framework framework { get; init; }
-
-        private ChatGui chatGui { get; init; }
-
-        private GameNetwork gameNetwork { get; init; }
-
-        private Condition condition { get; init; }
-
-
-        private readonly TextureWrap erDeathBgTexture;
-        private readonly TextureWrap erNormalDeathTexture;
-        private readonly TextureWrap erCraftFailedTexture;
-        private readonly TextureWrap erEnemyFelledTexture;
+        private readonly IDalamudTextureWrap erDeathBgTexture;
+        private readonly IDalamudTextureWrap erNormalDeathTexture;
+        private readonly IDalamudTextureWrap erCraftFailedTexture;
+        private readonly IDalamudTextureWrap erEnemyFelledTexture;
 
         private readonly string synthesisFailsMessage;
 
         private readonly Stopwatch time = new Stopwatch();
-
-        private AudioHandler audioHandler { get; init; }
-
 
         private bool assetsReady = false;
 
@@ -84,7 +63,7 @@ namespace EldenRing
         private int msFadeOutTime = 2000;
         private int msWaitTime = 1600;
 
-        private TextureWrap TextTexture => this.currentDeathType switch
+        private IDalamudTextureWrap TextTexture => this.currentDeathType switch
         {
             DeathType.Death => this.erNormalDeathTexture,
             DeathType.CraftFailed => this.erCraftFailedTexture,
@@ -106,15 +85,16 @@ namespace EldenRing
             EnemyFelled,
         }
 
-        public EldenRing(DalamudPluginInterface pluginInterface, DataManager dataManager, Framework frameworkP, ChatGui chat, GameNetwork game, Condition Condition, CommandManager commandManager)
+        public EldenRing(DalamudPluginInterface pluginInterface, IDataManager dataManager, IFramework frameworkP, IChatGui chat, IDutyState duty , ICondition Condition, ICommandManager commandManager, IPluginLog Log)
         {
             PluginInterface = pluginInterface;
             DataManager = dataManager;
             framework = frameworkP;
             chatGui = chat;
-            gameNetwork = game;
+            dutyState = duty;
             condition = Condition;
             CommandManager = commandManager;
+            pluginLog = Log;
 
             Configuration = pluginInterface.GetPluginConfig() as Configuration ?? new Configuration();
             Configuration.Initialize(pluginInterface);
@@ -135,13 +115,13 @@ namespace EldenRing
 
             if (erDeathBgTexture == null || erNormalDeathTexture == null || erCraftFailedTexture == null)
             {
-                PluginLog.Error("Elden: Failed to load images");
+                pluginLog.Error("Elden: Failed to load images");
                 return;
             }
 
             audioHandler.Volume = Configuration.Volume;
             int vol = (int)(Configuration.Volume * 100f);
-            PluginLog.Debug($"Volume set to {vol}%");
+            pluginLog.Debug($"Volume set to {vol}%");
 
 
             CommandManager.AddHandler(commandName, new CommandInfo(OnCommand)
@@ -157,9 +137,11 @@ namespace EldenRing
             PluginInterface.UiBuilder.Draw += Draw;
             framework.Update += FrameworkOnUpdate;
             chatGui.ChatMessage += ChatGuiOnChatMessage;
-            gameNetwork.NetworkMessage += GameNetworkOnNetworkMessage;
+            // gameNetwork.NetworkMessage += GameNetworkOnNetworkMessage;
+            dutyState.DutyCompleted += OnDutyComplete;
         }
 
+        /*
         private unsafe void GameNetworkOnNetworkMessage(IntPtr dataptr, ushort opcode, uint sourceactorid, uint targetactorid, NetworkMessageDirection direction)
         {
             if (opcode != DataManager.ServerOpCodes["ActorControlSelf"]) // pull the opcode from Dalamud's definitions
@@ -177,25 +159,35 @@ namespace EldenRing
                 });
             }
         }
+        */
+
+        private void OnDutyComplete(object? sender, ushort e)
+        {
+            Task.Delay(1000).ContinueWith(t =>
+            {
+                this.PlayAnimation(DeathType.EnemyFelled);
+            });
+        }
 
         private void ChatGuiOnChatMessage(XivChatType type, uint senderid, ref SeString sender, ref SeString message, ref bool ishandled)
         {
             if (message.TextValue.Contains(this.synthesisFailsMessage))
             {
                 this.PlayAnimation(DeathType.CraftFailed);
-                PluginLog.Verbose("Elden: Craft failed");
+                pluginLog.Verbose("Elden: Craft failed");
             }
         }
 
-        private void FrameworkOnUpdate(Framework framework)
+        private void FrameworkOnUpdate(IFramework framework)
         {
             //var condition = Service<Condition>.Get();
+            
             var isUnconscious = condition[ConditionFlag.Unconscious];
 
             if (isUnconscious && !this.lastFrameUnconscious)
             {
                 this.PlayAnimation(DeathType.Death);
-                PluginLog.Verbose($"Elden: Player died {isUnconscious}");
+                pluginLog.Verbose($"Elden: Player died {isUnconscious}");
             }
 
             this.lastFrameUnconscious = isUnconscious;
@@ -278,7 +270,7 @@ namespace EldenRing
             ImGui.PopStyleVar(3);
         }
 
-        private static void AdjustCursorAndDraw(Vector2 vpSize, TextureWrap tex, float scale = 1.0f)
+        private static void AdjustCursorAndDraw(Vector2 vpSize, IDalamudTextureWrap tex, float scale = 1.0f)
         {
             ImGui.SetCursorPos(new Vector2(0, 0));
 
@@ -392,7 +384,7 @@ namespace EldenRing
                         if (name == "IsSndSe")
                         {
                             var value = entry.Value.UInt;
-                            PluginLog.Verbose("Elden: {Name} - {Type} - {Value}", name, entry.Type, value);
+                            pluginLog.Verbose("Elden: {Name} - {Type} - {Value}", name, entry.Type, value);
 
                             seEnabled = value == 0;
                         }
@@ -400,7 +392,7 @@ namespace EldenRing
                         if (name == "IsSndMaster")
                         {
                             var value = entry.Value.UInt;
-                            PluginLog.Verbose("Elden: {Name} - {Type} - {Value}", name, entry.Type, value);
+                            pluginLog.Verbose("Elden: {Name} - {Type} - {Value}", name, entry.Type, value);
 
                             masterEnabled = value == 0;
                         }
@@ -411,7 +403,7 @@ namespace EldenRing
             }
             catch (Exception ex)
             {
-                PluginLog.Error(ex, "Elden: Error checking if sfx is enabled");
+                pluginLog.Error(ex, "Elden: Error checking if sfx is enabled");
                 return true;
             }
         }
@@ -421,7 +413,8 @@ namespace EldenRing
             PluginInterface.UiBuilder.Draw -= Draw;
             framework.Update -= FrameworkOnUpdate;
             chatGui.ChatMessage -= ChatGuiOnChatMessage;
-            gameNetwork.NetworkMessage -= GameNetworkOnNetworkMessage;
+            // gameNetwork.NetworkMessage -= GameNetworkOnNetworkMessage;
+            dutyState.DutyCompleted -= OnDutyComplete;
 
             erDeathBgTexture.Dispose();
             erNormalDeathTexture.Dispose();
@@ -436,7 +429,7 @@ namespace EldenRing
             try
             {
                 var newVol = int.Parse(vol) / 100f;
-                PluginLog.Debug($"{Name}: Setting volume to {newVol}");
+                pluginLog.Debug($"{Name}: Setting volume to {newVol}");
                 audioHandler.Volume = newVol;
                 Configuration.Volume = newVol;
                 chatGui.Print($"Volume set to {vol}%");
@@ -449,10 +442,10 @@ namespace EldenRing
 
         private void OnCommand(string command, string args)
         {
-            PluginLog.Debug("{Command} - {Args}", command, args);
+            pluginLog.Debug("{Command} - {Args}", command, args);
             var argList = args.Split(' ');
 
-            PluginLog.Debug(argList.Length.ToString());
+            pluginLog.Debug(argList.Length.ToString());
 
             if (argList.Length == 0)
                 return;
