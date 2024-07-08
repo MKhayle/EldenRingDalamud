@@ -10,6 +10,8 @@ using Dalamud.Game.Text.SeStringHandling;
 using Dalamud.Interface.Animation;
 using Dalamud.Interface.Animation.EasingFunctions;
 using Dalamud.Interface.Internal;
+using Dalamud.Interface.Textures;
+using Dalamud.Interface.Textures.TextureWraps;
 using Dalamud.Interface.Utility;
 using Dalamud.Memory;
 using Dalamud.Plugin;
@@ -29,7 +31,7 @@ namespace EldenRing
 
         private AudioHandler audioHandler { get; init; }
         private Configuration Configuration { get; init; }
-        private DalamudPluginInterface PluginInterface;
+        private IDalamudPluginInterface PluginInterface;
         private PluginUI PluginUi { get; init; }
 
         private IChatGui chatGui { get; init; }
@@ -39,11 +41,12 @@ namespace EldenRing
         private IDutyState  dutyState { get; init; }
         private IFramework framework { get; init; }
         private IPluginLog pluginLog { get; init; }
+        private ITextureProvider textureProvider { get; init; }
 
-        private readonly IDalamudTextureWrap erDeathBgTexture;
-        private readonly IDalamudTextureWrap erNormalDeathTexture;
-        private readonly IDalamudTextureWrap erCraftFailedTexture;
-        private readonly IDalamudTextureWrap erEnemyFelledTexture;
+        private readonly ISharedImmediateTexture erDeathBgTexture;
+        private readonly ISharedImmediateTexture erNormalDeathTexture;
+        private readonly ISharedImmediateTexture erCraftFailedTexture;
+        private readonly ISharedImmediateTexture erEnemyFelledTexture;
 
         private readonly string synthesisFailsMessage;
 
@@ -65,9 +68,9 @@ namespace EldenRing
 
         private IDalamudTextureWrap TextTexture => this.currentDeathType switch
         {
-            DeathType.Death => this.erNormalDeathTexture,
-            DeathType.CraftFailed => this.erCraftFailedTexture,
-            DeathType.EnemyFelled => this.erEnemyFelledTexture,
+            DeathType.Death => this.erNormalDeathTexture.GetWrapOrEmpty(),
+            DeathType.CraftFailed => this.erCraftFailedTexture.GetWrapOrEmpty(),
+            DeathType.EnemyFelled => this.erEnemyFelledTexture.GetWrapOrEmpty(),
         };
 
         private enum AnimationState
@@ -85,7 +88,7 @@ namespace EldenRing
             EnemyFelled,
         }
 
-        public EldenRing(DalamudPluginInterface pluginInterface, IDataManager dataManager, IFramework frameworkP, IChatGui chat, IDutyState duty , ICondition Condition, ICommandManager commandManager, IPluginLog Log)
+        public EldenRing(IDalamudPluginInterface pluginInterface, IDataManager dataManager, IFramework frameworkP, IChatGui chat, IDutyState duty , ICondition Condition, ICommandManager commandManager, IPluginLog Log, ITextureProvider TextureProvider)
         {
             PluginInterface = pluginInterface;
             DataManager = dataManager;
@@ -95,6 +98,7 @@ namespace EldenRing
             condition = Condition;
             CommandManager = commandManager;
             pluginLog = Log;
+            textureProvider = TextureProvider;
 
             Configuration = pluginInterface.GetPluginConfig() as Configuration ?? new Configuration();
             Configuration.Initialize(pluginInterface);
@@ -106,10 +110,10 @@ namespace EldenRing
             //var dataMgr = Service<DataManager>.Get();
             //var gameNetwork = Service<GameNetwork>.Get();
 
-            erDeathBgTexture = PluginInterface.UiBuilder.LoadImage(Path.Combine(PluginInterface.AssemblyLocation.Directory?.FullName!, "er_death_bg.png"))!;
-            erNormalDeathTexture = PluginInterface.UiBuilder.LoadImage(Path.Combine(PluginInterface.AssemblyLocation.Directory?.FullName!, "er_normal_death.png"))!;
-            erCraftFailedTexture = PluginInterface.UiBuilder.LoadImage(Path.Combine(PluginInterface.AssemblyLocation.Directory?.FullName!, "er_craft_failed.png"))!;
-            erEnemyFelledTexture = PluginInterface.UiBuilder.LoadImage(Path.Combine(PluginInterface.AssemblyLocation.Directory?.FullName!, "er_enemy_felled.png"))!;
+            erDeathBgTexture = textureProvider?.GetFromFile(Path.Combine(PluginInterface.AssemblyLocation.Directory?.FullName!, "er_death_bg.png"))!;
+            erNormalDeathTexture = textureProvider?.GetFromFile(Path.Combine(PluginInterface.AssemblyLocation.Directory?.FullName!, "er_normal_death.png"))!;
+            erCraftFailedTexture = textureProvider?.GetFromFile(Path.Combine(PluginInterface.AssemblyLocation.Directory?.FullName!, "er_craft_failed.png"))!;
+            erEnemyFelledTexture = textureProvider?.GetFromFile(Path.Combine(PluginInterface.AssemblyLocation.Directory?.FullName!, "er_enemy_felled.png"))!;
 
             audioHandler = new(Path.Combine(PluginInterface.AssemblyLocation.Directory?.FullName!, "snd_death_er.wav"));
 
@@ -169,7 +173,7 @@ namespace EldenRing
             });
         }
 
-        private void ChatGuiOnChatMessage(XivChatType type, uint senderid, ref SeString sender, ref SeString message, ref bool ishandled)
+        private void ChatGuiOnChatMessage(XivChatType type, int timestamp, ref SeString sender, ref SeString message, ref bool ishandled)
         {
             if (message.TextValue.Contains(this.synthesisFailsMessage))
             {
@@ -299,7 +303,7 @@ namespace EldenRing
 
             ImGui.PushStyleVar(ImGuiStyleVar.Alpha, (float)this.alphaEasing.Value);
 
-            AdjustCursorAndDraw(vpSize, this.erDeathBgTexture);
+            AdjustCursorAndDraw(vpSize, this.erDeathBgTexture.GetWrapOrEmpty());
             AdjustCursorAndDraw(vpSize, this.TextTexture, this.scaleEasing.EasedPoint.X);
 
             ImGui.PopStyleVar();
@@ -314,7 +318,7 @@ namespace EldenRing
                 this.alphaEasing.Start();
             }
 
-            AdjustCursorAndDraw(vpSize, this.erDeathBgTexture);
+            AdjustCursorAndDraw(vpSize, this.erDeathBgTexture.GetWrapOrEmpty());
             AdjustCursorAndDraw(vpSize, this.TextTexture, this.scaleEasing.EasedPoint.X);
         }
 
@@ -328,7 +332,7 @@ namespace EldenRing
 
             ImGui.PushStyleVar(ImGuiStyleVar.Alpha, 1 - (float)this.alphaEasing.Value);
 
-            AdjustCursorAndDraw(vpSize, this.erDeathBgTexture);
+            AdjustCursorAndDraw(vpSize, this.erDeathBgTexture.GetWrapOrEmpty());
             AdjustCursorAndDraw(vpSize, this.TextTexture, this.scaleEasing.EasedPoint.X);
 
             ImGui.PopStyleVar();
@@ -368,7 +372,7 @@ namespace EldenRing
             try
             {
                 var framework = FFXIVClientStructs.FFXIV.Client.System.Framework.Framework.Instance();
-                var configBase = framework->SystemConfig.CommonSystemConfig.ConfigBase;
+                var configBase = framework->SystemConfig.SystemConfigBase.ConfigBase;
 
                 var seEnabled = false;
                 var masterEnabled = false;
@@ -416,9 +420,9 @@ namespace EldenRing
             // gameNetwork.NetworkMessage -= GameNetworkOnNetworkMessage;
             dutyState.DutyCompleted -= OnDutyComplete;
 
-            erDeathBgTexture.Dispose();
-            erNormalDeathTexture.Dispose();
-            erCraftFailedTexture.Dispose();
+            // erDeathBgTexture.Dispose();
+            // erNormalDeathTexture.Dispose();
+            // erCraftFailedTexture.Dispose();
             Configuration.Save();
 
             CommandManager.RemoveHandler(commandName);

@@ -7,7 +7,7 @@ namespace EldenRing
     [Serializable]
     public class Configuration : IPluginConfiguration
     {
-        private DalamudPluginInterface? pluginInterface;
+        private IDalamudPluginInterface? pluginInterface;
         public int Version { get; set; } = 0;
 
         public float Volume { get; set; } = 1;
@@ -16,7 +16,7 @@ namespace EldenRing
 
         // the below exist just to make saving less cumbersome        
 
-        public void Initialize(DalamudPluginInterface pluginInterface)
+        public void Initialize(IDalamudPluginInterface pluginInterface)
         {
             this.pluginInterface = pluginInterface;
         }
