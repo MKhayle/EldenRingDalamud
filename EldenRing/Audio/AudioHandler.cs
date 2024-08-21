@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using NAudio.Vorbis;
 using NAudio.Wave;
 using NAudio.Wave.SampleProviders;
 
@@ -18,7 +19,7 @@ namespace EldenRing.Audio
         internal WaveFormat WaveFormat { get; private set; }
         internal CachedSound(string audioFileName)
         {
-            using (var audioFileReader = new AudioFileReader(audioFileName))
+            using (var audioFileReader = new VorbisWaveReader(audioFileName))
             {
                 WaveFormat = audioFileReader.WaveFormat;
                 var wholeFile = new List<float>((int)(audioFileReader.Length / 4));

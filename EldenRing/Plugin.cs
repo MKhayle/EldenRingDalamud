@@ -1,6 +1,7 @@
 using System;
 using System.Diagnostics;
 using System.IO;
+using System.Linq;
 using System.Numerics;
 using System.Threading.Tasks;
 using Dalamud.Game.ClientState.Conditions;
@@ -18,6 +19,7 @@ using Dalamud.Plugin;
 using Dalamud.Plugin.Services;
 using Dalamud.Utility;
 using EldenRing.Audio;
+using FFXIVClientStructs.FFXIV.Client.Game.Fate;
 using ImGuiNET;
 using Lumina.Excel.GeneratedSheets;
 
@@ -42,9 +44,11 @@ namespace EldenRing
         private IFramework framework { get; init; }
         private IPluginLog pluginLog { get; init; }
         private ITextureProvider textureProvider { get; init; }
+        private IClientState client { get; init; }
 
         private readonly ISharedImmediateTexture erDeathBgTexture;
         private readonly ISharedImmediateTexture erNormalDeathTexture;
+        private readonly ISharedImmediateTexture erBozjaDeathTexture;
         private readonly ISharedImmediateTexture erCraftFailedTexture;
         private readonly ISharedImmediateTexture erEnemyFelledTexture;
 
@@ -69,6 +73,7 @@ namespace EldenRing
         private IDalamudTextureWrap TextTexture => this.currentDeathType switch
         {
             DeathType.Death => this.erNormalDeathTexture.GetWrapOrEmpty(),
+            DeathType.BozjaDeath => this.erBozjaDeathTexture.GetWrapOrEmpty(),
             DeathType.CraftFailed => this.erCraftFailedTexture.GetWrapOrEmpty(),
             DeathType.EnemyFelled => this.erEnemyFelledTexture.GetWrapOrEmpty(),
         };
@@ -84,11 +89,12 @@ namespace EldenRing
         private enum DeathType
         {
             Death,
+            BozjaDeath,
             CraftFailed,
             EnemyFelled,
         }
 
-        public EldenRing(IDalamudPluginInterface pluginInterface, IDataManager dataManager, IFramework frameworkP, IChatGui chat, IDutyState duty , ICondition Condition, ICommandManager commandManager, IPluginLog Log, ITextureProvider TextureProvider)
+        public EldenRing(IDalamudPluginInterface pluginInterface, IDataManager dataManager, IFramework frameworkP, IChatGui chat, IDutyState duty , ICondition Condition, ICommandManager commandManager, IPluginLog Log, ITextureProvider TextureProvider, IClientState clientState)
         {
             PluginInterface = pluginInterface;
             DataManager = dataManager;
@@ -99,6 +105,7 @@ namespace EldenRing
             CommandManager = commandManager;
             pluginLog = Log;
             textureProvider = TextureProvider;
+            client = clientState;
 
             Configuration = pluginInterface.GetPluginConfig() as Configuration ?? new Configuration();
             Configuration.Initialize(pluginInterface);
@@ -112,10 +119,11 @@ namespace EldenRing
 
             erDeathBgTexture = textureProvider?.GetFromFile(Path.Combine(PluginInterface.AssemblyLocation.Directory?.FullName!, "er_death_bg.png"))!;
             erNormalDeathTexture = textureProvider?.GetFromFile(Path.Combine(PluginInterface.AssemblyLocation.Directory?.FullName!, "er_normal_death.png"))!;
+            erBozjaDeathTexture = textureProvider?.GetFromFile(Path.Combine(PluginInterface.AssemblyLocation.Directory?.FullName!, "er_bozja_death.png"))!;
             erCraftFailedTexture = textureProvider?.GetFromFile(Path.Combine(PluginInterface.AssemblyLocation.Directory?.FullName!, "er_craft_failed.png"))!;
             erEnemyFelledTexture = textureProvider?.GetFromFile(Path.Combine(PluginInterface.AssemblyLocation.Directory?.FullName!, "er_enemy_felled.png"))!;
 
-            audioHandler = new(Path.Combine(PluginInterface.AssemblyLocation.Directory?.FullName!, "snd_death_er.wav"));
+            audioHandler = new(Path.Combine(PluginInterface.AssemblyLocation.Directory?.FullName!, "snd_death_er.ogg"));
 
             if (erDeathBgTexture == null || erNormalDeathTexture == null || erCraftFailedTexture == null)
             {
@@ -187,8 +195,15 @@ namespace EldenRing
             //var condition = Service<Condition>.Get();
             
             var isUnconscious = condition[ConditionFlag.Unconscious];
-
-            if (isUnconscious && !this.lastFrameUnconscious)
+            var territoryRow = client.TerritoryType;
+            var territory = DataManager.GetExcelSheet<TerritoryType>()!.GetRow(territoryRow);
+            var bozjaTerritory = DataManager.GetExcelSheet<TerritoryType>().Where(t => t.TerritoryIntendedUse is 48).ToList();
+            if (isUnconscious && !this.lastFrameUnconscious && bozjaTerritory.Contains(territory))
+            {
+                this.PlayAnimation(DeathType.BozjaDeath);
+                pluginLog.Verbose($"Elden: Player died in bozja {isUnconscious}");
+            }
+            else if (isUnconscious && !this.lastFrameUnconscious)
             {
                 this.PlayAnimation(DeathType.Death);
                 pluginLog.Verbose($"Elden: Player died {isUnconscious}");

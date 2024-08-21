@@ -3,7 +3,7 @@
   <PropertyGroup>
     <Authors></Authors>
     <Company></Company>
-    <Version>0.0.2.0</Version>
+    <Version>0.0.3.0</Version>
     <Description>Elden Ring April Fools addon</Description>
     <Copyright></Copyright>
     <PackageProjectUrl></PackageProjectUrl>
@@ -33,6 +33,10 @@
 		  <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
 		  <Visible>false</Visible>
 	  </Content>
+	  <Content Include="..\Data\er_bozja_death.png">
+		  <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+		  <Visible>false</Visible>
+	  </Content>
 	  <Content Include="..\Data\er_craft_failed.png">
 		  <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
 		  <Visible>false</Visible>
@@ -41,7 +45,7 @@
 		  <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
 		  <Visible>false</Visible>
 	  </Content>
-	  <Content Include="..\Data\snd_death_er.wav">
+	  <Content Include="..\Data\snd_death_er.ogg">
 		  <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
 		  <Visible>false</Visible>
 	  </Content>
@@ -53,7 +57,10 @@
 
   <ItemGroup>
     <PackageReference Include="DalamudPackager" Version="2.1.13" />
-    <PackageReference Include="NAudio" Version="2.2.1" />
+    <PackageReference Include="NAudio.Core" Version="2.2.1" />
+    <PackageReference Include="NAudio.Vorbis" Version="1.5.0" />
+    <PackageReference Include="NAudio.Wasapi" Version="2.2.1" />
+    <PackageReference Include="NAudio.WinMM" Version="2.2.1" />
     <PackageReference Include="System.ComponentModel.EventBasedAsync" Version="4.3.0" />
     <PackageReference Include="System.Windows.Extensions" Version="8.0.0" />
     <Reference Include="FFXIVClientStructs">
