@@ -21,7 +21,8 @@ using Dalamud.Utility;
 using EldenRing.Audio;
 using FFXIVClientStructs.FFXIV.Client.Game.Fate;
 using ImGuiNET;
-using Lumina.Excel.GeneratedSheets;
+using Lumina.Excel;
+using Lumina.Excel.Sheets;
 
 namespace EldenRing
 {
@@ -142,7 +143,8 @@ namespace EldenRing
             });
 
 
-            synthesisFailsMessage = DataManager.GetExcelSheet<LogMessage>()!.GetRow(1160)!.Text.ToDalamudString().TextValue;
+            synthesisFailsMessage = DataManager.GetExcelSheet<LogMessage>()!.GetRow(1160)!.Text.ToString();
+            pluginLog.Verbose("Synthesis failed message: " + synthesisFailsMessage);
 
             assetsReady = true;
 
@@ -191,22 +193,24 @@ namespace EldenRing
         }
 
         private void FrameworkOnUpdate(IFramework framework)
-        {
-            //var condition = Service<Condition>.Get();
-            
+        {            
             var isUnconscious = condition[ConditionFlag.Unconscious];
-            var territoryRow = client.TerritoryType;
-            var territory = DataManager.GetExcelSheet<TerritoryType>()!.GetRow(territoryRow);
-            var bozjaTerritory = DataManager.GetExcelSheet<TerritoryType>().Where(t => t.TerritoryIntendedUse is 48).ToList();
-            if (isUnconscious && !this.lastFrameUnconscious && bozjaTerritory.Contains(territory))
+            if (isUnconscious)
             {
-                this.PlayAnimation(DeathType.BozjaDeath);
-                pluginLog.Verbose($"Elden: Player died in bozja {isUnconscious}");
-            }
-            else if (isUnconscious && !this.lastFrameUnconscious)
-            {
-                this.PlayAnimation(DeathType.Death);
-                pluginLog.Verbose($"Elden: Player died {isUnconscious}");
+                var territoryRow = client.TerritoryType;
+                var territory = DataManager.GetExcelSheet<TerritoryType>()!.GetRow(territoryRow);
+                var bozjaTerritory = DataManager.GetExcelSheet<TerritoryType>().Where(t => t.TerritoryIntendedUse.Value.RowId is 48).ToList();
+                if (!this.lastFrameUnconscious && bozjaTerritory.Contains(territory))
+                {
+                    this.PlayAnimation(DeathType.BozjaDeath);
+                    pluginLog.Verbose($"Elden: Player died in bozja {isUnconscious}");
+                }
+                else if (!this.lastFrameUnconscious)
+                {
+                    this.PlayAnimation(DeathType.Death);
+                    pluginLog.Verbose($"Elden: Player died {isUnconscious}");
+                }
+
             }
 
             this.lastFrameUnconscious = isUnconscious;
