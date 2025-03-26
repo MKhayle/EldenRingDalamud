@@ -320,7 +320,7 @@ namespace EldenRing
             if (this.time.ElapsedMilliseconds > this.msFadeInTime)
                 this.currentState = AnimationState.Wait;
 
-            ImGui.PushStyleVar(ImGuiStyleVar.Alpha, (float)this.alphaEasing.Value);
+            ImGui.PushStyleVar(ImGuiStyleVar.Alpha, (float)this.alphaEasing.ValueUnclamped);
 
             AdjustCursorAndDraw(vpSize, this.erDeathBgTexture.GetWrapOrEmpty());
             AdjustCursorAndDraw(vpSize, this.TextTexture, this.scaleEasing.EasedPoint.X);
@@ -349,7 +349,7 @@ namespace EldenRing
                 this.time.Stop();
             }
 
-            ImGui.PushStyleVar(ImGuiStyleVar.Alpha, 1 - (float)this.alphaEasing.Value);
+            ImGui.PushStyleVar(ImGuiStyleVar.Alpha, 1 - (float)this.alphaEasing.ValueUnclamped);
 
             AdjustCursorAndDraw(vpSize, this.erDeathBgTexture.GetWrapOrEmpty());
             AdjustCursorAndDraw(vpSize, this.TextTexture, this.scaleEasing.EasedPoint.X);
