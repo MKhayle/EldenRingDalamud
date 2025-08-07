@@ -20,7 +20,7 @@ using Dalamud.Plugin.Services;
 using Dalamud.Utility;
 using EldenRing.Audio;
 using FFXIVClientStructs.FFXIV.Client.Game.Fate;
-using ImGuiNET;
+using Dalamud.Bindings.ImGui;
 using Lumina.Excel;
 using Lumina.Excel.Sheets;
 
@@ -312,7 +312,7 @@ namespace EldenRing
             var cursor = ImGui.GetCursorPos();
             ImGui.SetCursorPos(cursor - (difference / 2));
 
-            ImGui.Image(tex.ImGuiHandle, scaledSize);
+            ImGui.Image(tex.Handle, scaledSize);
         }
 
         private void FadeIn(Vector2 vpSize)
